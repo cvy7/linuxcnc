@@ -419,24 +419,6 @@ class HandlerClass:
             self.get_material()
             self.materialUpdate = False
 
-    def on_thc_auto_toggled(self,button):
-        if button.get_active():
-            self.builder.get_object('thc-enable').set_sensitive(True)
-            self.builder.get_object('thc-enable-label').set_text('THC Enable')
-
-    def on_thc_on_toggled(self,button):
-        if button.get_active():
-            self.halcomp['thc-enable-out'] = 1
-            self.builder.get_object('thc-enable').set_sensitive(False)
-            self.builder.get_object('thc-enable-label').set_text('THC ENABLED')
-
-    def on_thc_off_toggled(self,button):
-        if button.get_active():
-            self.halcomp['thc-enable-out'] = 0
-
-            self.builder.get_object('thc-enable').set_sensitive(False)
-            self.builder.get_object('thc-enable-label').set_text('THC DISABLED')
-
     def first_material_changed(self, halpin):
         material = halpin.get()
         if not self.material_exists(material):
@@ -784,8 +766,28 @@ class HandlerClass:
             self.materialUpdate = False
 
     def periodic(self):
-        if self.builder.get_object('thc-auto').get_active():
-            self.halcomp['thc-enable-out'] = self.builder.get_object('thc-enable').get_active()
+        if self.builder.get_object('mesh-enable').get_active() or hal.get_value('plasmac:mesh-enable-1'):
+            self.halcomp['thc-enable-out'] = False
+            self.builder.get_object('thc-enable-label').set_text('THC DISABLED')
+            self.builder.get_object('thc-enable').set_sensitive(False)
+        else:
+            if self.builder.get_object('thc-auto').get_active():
+                self.builder.get_object('thc-enable').set_sensitive(True)
+                if self.builder.get_object('thc-enable').get_active():
+                    self.halcomp['thc-enable-out'] = True
+                    self.builder.get_object('thc-enable-label').set_text('THC ENABLED')
+                else:
+                    self.halcomp['thc-enable-out'] = False
+                    self.builder.get_object('thc-enable-label').set_text('THC DISABLED')
+            elif self.builder.get_object('thc-on').get_active():
+                self.halcomp['thc-enable-out'] = True
+                self.builder.get_object('thc-enable').set_sensitive(False)
+                self.builder.get_object('thc-enable-label').set_text('THC ENABLED')
+            elif self.builder.get_object('thc-off').get_active():
+                self.halcomp['thc-enable-out'] = False
+                self.builder.get_object('thc-enable').set_sensitive(False)
+                self.builder.get_object('thc-enable-label').set_text('THC DISABLED')
+
         mode = hal.get_value('plasmac.mode')
         if mode != self.oldMode:
             if mode == 0:
