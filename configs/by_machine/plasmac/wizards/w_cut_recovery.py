@@ -3,7 +3,7 @@
 '''
 w_cut_recovery.py
 
-Copyright (C) 2019 2020 Phillip A Carter
+Copyright (C) 2020 Phillip A Carter
 
 This program is free software; you can redistribute it and/or modify it
 under the terms of the GNU General Public License as published by the
@@ -30,18 +30,9 @@ import time
 class recovery:
 
     def __init__(self):
-        self.ini = True
-        inFile = '~/linuxcnc_print.txt'
-        with open('{}/linuxcnc_print.txt'.format(os.path.expanduser('~')), 'r') as f_in:
-            for line in f_in:
-                if line.startswith('INIFILE='):
-                    iniFile = line.split('=')[1].strip()
-                    break
-        try:
-            self.i = linuxcnc.ini(iniFile)
-        except:
-            print('Could not find ini file')
-            self.ini = False
+        print('INIT')
+        self.i = linuxcnc.ini(os.environ['INI_FILE_NAME'])
+        print('inifile = {}'.format(self.i))
         try:
             self.h = hal.component('dummy')
             self.h.ready()
@@ -49,31 +40,28 @@ class recovery:
             pass
         if not hal.get_value('halui.program.is-paused'):
             print('Cannot load cut recovery because program is not paused')
-            self.ini = False
-        if self.ini:
-            self.W = gtk.Window()
-            self.W.set_title('PlasmaC Cut Recovery')
-            self.W.set_position(gtk.WIN_POS_MOUSE)
-            self.W.set_keep_above(True)
-            self.W.connect('delete_event', self.on_window_delete_event)
-            self.create_widgets()
-            self.W.show_all()
-            self.s = linuxcnc.stat()
-            self.c = linuxcnc.command()
-            self.clear_offsets()
-            self.xOrig = hal.get_value('axis.x.eoffset-counts')
-            self.yOrig = hal.get_value('axis.y.eoffset-counts')
-            self.zOrig = hal.get_value('axis.z.eoffset-counts')
-            self.oScale = hal.get_value('plasmac.offset-scale')
-            self.xMin = float(self.i.find('AXIS_X', 'MIN_LIMIT'))
-            self.xMax = float(self.i.find('AXIS_X', 'MAX_LIMIT'))
-            self.yMin = float(self.i.find('AXIS_Y', 'MIN_LIMIT'))
-            self.yMax = float(self.i.find('AXIS_Y', 'MAX_LIMIT'))
-            self.zMin = float(self.i.find('AXIS_Z', 'MIN_LIMIT'))
-            self.zMax = float(self.i.find('AXIS_Z', 'MAX_LIMIT'))
-            gobject.timeout_add(100, self.periodic)
-        else:
             raise SystemExit()
+        self.W = gtk.Window()
+        self.W.set_title('PlasmaC Cut Recovery')
+        self.W.set_position(gtk.WIN_POS_MOUSE)
+        self.W.set_keep_above(True)
+        self.W.connect('delete_event', self.on_window_delete_event)
+        self.create_widgets()
+        self.W.show_all()
+        self.s = linuxcnc.stat()
+        self.c = linuxcnc.command()
+        self.clear_offsets()
+        self.xOrig = hal.get_value('axis.x.eoffset-counts')
+        self.yOrig = hal.get_value('axis.y.eoffset-counts')
+        self.zOrig = hal.get_value('axis.z.eoffset-counts')
+        self.oScale = hal.get_value('plasmac.offset-scale')
+        self.xMin = float(self.i.find('AXIS_X', 'MIN_LIMIT'))
+        self.xMax = float(self.i.find('AXIS_X', 'MAX_LIMIT'))
+        self.yMin = float(self.i.find('AXIS_Y', 'MIN_LIMIT'))
+        self.yMax = float(self.i.find('AXIS_Y', 'MAX_LIMIT'))
+        self.zMin = float(self.i.find('AXIS_Z', 'MIN_LIMIT'))
+        self.zMax = float(self.i.find('AXIS_Z', 'MAX_LIMIT'))
+        gobject.timeout_add(100, self.periodic)
 
     def periodic(self):
         if hal.get_value('plasmac.cut-recovery') and \
@@ -112,29 +100,26 @@ class recovery:
         speed = float(self.rate.get_value()) * 0.01 * direction
         hal.set_p('plasmac.paused-motion-speed',str(speed))
 
-    def xPlus_pressed(self, widget):
-        if hal.get_value('plasmac.axis-x-position') + \
-           hal.get_value('axis.x.eoffset-counts') * self.oScale + \
-           hal.get_value('plasmac_run.kerf-width-f') > self.xMax:
-            msg = 'X axis motion would trip X maximum limit'
-            self.dialog_error(msg)
-            return
-        move = int(hal.get_value('plasmac_run.kerf-width-f') / self.oScale * 1)
-        hal.set_p('plasmac.x-offset', '{}'.format(str(hal.get_value('axis.x.eoffset-counts') + move)))
-        hal.set_p('plasmac.cut-recovery', '1')
-
-    def xMinus_pressed(self, widget):
+    def XminusYplus_pressed(self, widget):
         if hal.get_value('plasmac.axis-x-position') + \
            hal.get_value('axis.x.eoffset-counts') * self.oScale - \
            hal.get_value('plasmac_run.kerf-width-f') < self.xMin:
             msg = 'X axis motion would trip X mimimum limit'
             self.dialog_error(msg)
             return
-        move = int(hal.get_value('plasmac_run.kerf-width-f') / self.oScale * -1)
-        hal.set_p('plasmac.x-offset', '{}'.format(str(hal.get_value('axis.x.eoffset-counts') + move)))
+        move1 = int(hal.get_value('plasmac_run.kerf-width-f') / self.oScale * -1)
+        if hal.get_value('plasmac.axis-y-position') + \
+           hal.get_value('axis.y.eoffset-counts') * self.oScale + \
+           hal.get_value('plasmac_run.kerf-width-f') > self.yMax:
+            msg = 'Y axis motion would trip Y maximum limit'
+            self.dialog_error(msg)
+            return
+        move2 = int(hal.get_value('plasmac_run.kerf-width-f') / self.oScale * 1)
+        hal.set_p('plasmac.x-offset', '{}'.format(str(hal.get_value('axis.x.eoffset-counts') + move1)))
+        hal.set_p('plasmac.y-offset', '{}'.format(str(hal.get_value('axis.y.eoffset-counts') + move2)))
         hal.set_p('plasmac.cut-recovery', '1')
 
-    def yPlus_pressed(self, widget):
+    def Yplus_pressed(self, widget):
         if hal.get_value('plasmac.axis-y-position') + \
            hal.get_value('axis.y.eoffset-counts') * self.oScale + \
            hal.get_value('plasmac_run.kerf-width-f') > self.yMax:
@@ -145,7 +130,67 @@ class recovery:
         hal.set_p('plasmac.y-offset', '{}'.format(str(hal.get_value('axis.y.eoffset-counts') + move)))
         hal.set_p('plasmac.cut-recovery', '1')
 
-    def yMinus_pressed(self, widget):
+    def XplusYplus_pressed(self, widget):
+        if hal.get_value('plasmac.axis-x-position') + \
+           hal.get_value('axis.x.eoffset-counts') * self.oScale + \
+           hal.get_value('plasmac_run.kerf-width-f') > self.xMax:
+            msg = 'X axis motion would trip X maximum limit'
+            self.dialog_error(msg)
+            return
+        move1 = int(hal.get_value('plasmac_run.kerf-width-f') / self.oScale * 1)
+        if hal.get_value('plasmac.axis-y-position') + \
+           hal.get_value('axis.y.eoffset-counts') * self.oScale + \
+           hal.get_value('plasmac_run.kerf-width-f') > self.yMax:
+            msg = 'Y axis motion would trip Y maximum limit'
+            self.dialog_error(msg)
+            return
+        move2 = int(hal.get_value('plasmac_run.kerf-width-f') / self.oScale * 1)
+        hal.set_p('plasmac.x-offset', '{}'.format(str(hal.get_value('axis.x.eoffset-counts') + move1)))
+        hal.set_p('plasmac.y-offset', '{}'.format(str(hal.get_value('axis.y.eoffset-counts') + move2)))
+        hal.set_p('plasmac.cut-recovery', '1')
+
+    def Xminus_pressed(self, widget):
+        if hal.get_value('plasmac.axis-x-position') + \
+           hal.get_value('axis.x.eoffset-counts') * self.oScale - \
+           hal.get_value('plasmac_run.kerf-width-f') < self.xMin:
+            msg = 'X axis motion would trip X mimimum limit'
+            self.dialog_error(msg)
+            return
+        move = int(hal.get_value('plasmac_run.kerf-width-f') / self.oScale * -1)
+        hal.set_p('plasmac.x-offset', '{}'.format(str(hal.get_value('axis.x.eoffset-counts') + move)))
+        hal.set_p('plasmac.cut-recovery', '1')
+
+    def Xplus_pressed(self, widget):
+        if hal.get_value('plasmac.axis-x-position') + \
+           hal.get_value('axis.x.eoffset-counts') * self.oScale + \
+           hal.get_value('plasmac_run.kerf-width-f') > self.xMax:
+            msg = 'X axis motion would trip X maximum limit'
+            self.dialog_error(msg)
+            return
+        move = int(hal.get_value('plasmac_run.kerf-width-f') / self.oScale * 1)
+        hal.set_p('plasmac.x-offset', '{}'.format(str(hal.get_value('axis.x.eoffset-counts') + move)))
+        hal.set_p('plasmac.cut-recovery', '1')
+
+    def XminusYminus_pressed(self, widget):
+        if hal.get_value('plasmac.axis-x-position') + \
+           hal.get_value('axis.x.eoffset-counts') * self.oScale - \
+           hal.get_value('plasmac_run.kerf-width-f') < self.xMin:
+            msg = 'X axis motion would trip X mimimum limit'
+            self.dialog_error(msg)
+            return
+        move1 = int(hal.get_value('plasmac_run.kerf-width-f') / self.oScale * -1)
+        if hal.get_value('plasmac.axis-y-position') + \
+           hal.get_value('axis.y.eoffset-counts') * self.oScale - \
+           hal.get_value('plasmac_run.kerf-width-f') < self.yMin:
+            msg = 'Y axis motion would trip Y minimum limit'
+            self.dialog_error(msg)
+            return
+        move2 = int(hal.get_value('plasmac_run.kerf-width-f') / self.oScale * -1)
+        hal.set_p('plasmac.x-offset', '{}'.format(str(hal.get_value('axis.x.eoffset-counts') + move1)))
+        hal.set_p('plasmac.y-offset', '{}'.format(str(hal.get_value('axis.y.eoffset-counts') + move2)))
+        hal.set_p('plasmac.cut-recovery', '1')
+
+    def Yminus_pressed(self, widget):
         if hal.get_value('plasmac.axis-y-position') + \
            hal.get_value('axis.y.eoffset-counts') * self.oScale - \
            hal.get_value('plasmac_run.kerf-width-f') < self.yMin:
@@ -154,6 +199,25 @@ class recovery:
             return
         move = int(hal.get_value('plasmac_run.kerf-width-f') / self.oScale * -1)
         hal.set_p('plasmac.y-offset', '{}'.format(str(hal.get_value('axis.y.eoffset-counts') + move)))
+        hal.set_p('plasmac.cut-recovery', '1')
+
+    def XplusYminus_pressed(self, widget):
+        if hal.get_value('plasmac.axis-x-position') + \
+           hal.get_value('axis.x.eoffset-counts') * self.oScale + \
+           hal.get_value('plasmac_run.kerf-width-f') > self.xMax:
+            msg = 'X axis motion would trip X maximum limit'
+            self.dialog_error(msg)
+            return
+        move1 = int(hal.get_value('plasmac_run.kerf-width-f') / self.oScale * 1)
+        if hal.get_value('plasmac.axis-y-position') + \
+           hal.get_value('axis.y.eoffset-counts') * self.oScale - \
+           hal.get_value('plasmac_run.kerf-width-f') < self.yMin:
+            msg = 'Y axis motion would trip Y minimum limit'
+            self.dialog_error(msg)
+            return
+        move2 = int(hal.get_value('plasmac_run.kerf-width-f') / self.oScale * -1)
+        hal.set_p('plasmac.x-offset', '{}'.format(str(hal.get_value('axis.x.eoffset-counts') + move1)))
+        hal.set_p('plasmac.y-offset', '{}'.format(str(hal.get_value('axis.y.eoffset-counts') + move2)))
         hal.set_p('plasmac.cut-recovery', '1')
 
     def zPlus_pressed(self, widget):
@@ -200,8 +264,6 @@ class recovery:
         self.fwd.set_sensitive(False)
 
     def create_widgets(self):
-        if not self.ini:
-            return False
         self.T = gtk.Table()
         self.T.set_homogeneous(True)
         self.W.add(self.T)
@@ -218,18 +280,65 @@ class recovery:
         self.fwd.connect('pressed', self.fwd_pressed)
         self.fwd.connect('released', self.fwd_released)
         self.T.attach(self.fwd, 4, 5, 0, 2)
-        self.yPlus = gtk.Button('Y+')
-        self.yPlus.connect('pressed', self.yPlus_pressed)
-        self.T.attach(self.yPlus, 2, 3, 3, 5)
-        self.xMinus = gtk.Button('X-')
-        self.xMinus.connect('pressed', self.xMinus_pressed)
-        self.T.attach(self.xMinus, 1, 2, 5, 7)
-        self.xPlus = gtk.Button('X+')
-        self.xPlus.connect('pressed', self.xPlus_pressed)
-        self.T.attach(self.xPlus, 3, 4, 5, 7)
-        self.yMinus = gtk.Button('Y-')
-        self.yMinus.connect('pressed', self.yMinus_pressed)
-        self.T.attach(self.yMinus, 2, 3, 7, 9)
+
+        self.XminusYplus = gtk.Button('X- Y+')
+        self.XminusYplus.connect('pressed', self.XminusYplus_pressed)
+        self.T.attach(self.XminusYplus, 1, 2, 3, 5)
+
+        self.Yplus = gtk.Button('Y+')
+#        image = gtk.image_new_from_stock(gtk.STOCK_GO_UP, gtk.ICON_SIZE_SMALL_TOOLBAR)
+#        self.Yplus.add(image)
+        self.Yplus.connect('pressed', self.Yplus_pressed)
+        self.T.attach(self.Yplus, 2, 3, 3, 5)
+
+        self.XplusYplus = gtk.Button('X- Y-')
+        self.XplusYplus.connect('pressed', self.XplusYplus_pressed)
+        self.T.attach(self.XplusYplus, 3, 4, 3, 5)
+
+        self.Xminus = gtk.Button('X-')
+#        image = gtk.image_new_from_stock(gtk.STOCK_GO_BACK, gtk.ICON_SIZE_SMALL_TOOLBAR)
+#        self.Xminus.add(image)
+        self.Xminus.connect('pressed', self.Xminus_pressed)
+        self.T.attach(self.Xminus, 1, 2, 5, 7)
+
+        self.Xplus = gtk.Button('X+')
+#        image = gtk.image_new_from_stock(gtk.STOCK_GO_FORWARD, gtk.ICON_SIZE_SMALL_TOOLBAR)
+#        self.Xplus.add(image)
+        self.Xplus.connect('pressed', self.Xplus_pressed)
+        self.T.attach(self.Xplus, 3, 4, 5, 7)
+
+        self.XminusYminus = gtk.Button('X- Y-')
+        self.XminusYminus.connect('pressed', self.XminusYminus_pressed)
+        self.T.attach(self.XminusYminus, 1, 2, 7, 9)
+
+        self.Yminus = gtk.Button('Y-')
+#        image = gtk.image_new_from_stock(gtk.STOCK_GO_DOWN, gtk.ICON_SIZE_SMALL_TOOLBAR)
+#        self.Yminus.add(image)
+        self.Yminus.connect('pressed', self.Yminus_pressed)
+        self.T.attach(self.Yminus, 2, 3, 7, 9)
+
+        self.XplusYminus = gtk.Button('X+\nY-')
+#        self.XplusYminus = gtk.Button()
+        self.XplusYminus.connect('pressed', self.XplusYminus_pressed)
+        self.T.attach(self.XplusYminus, 3, 4, 7, 9)
+
+#        image = gtk.image_new_from_stock(gtk.STOCK_GO_UP, gtk.ICON_SIZE_SMALL_TOOLBAR)
+
+#        print 'gettin image'
+#        pixbuf = gtk.gdk.pixbuf_new_from_xpm_data(filename='./wizards/images/downarrow.xbm'.format(wizard)) 
+#        print 'image 1'
+#                    width=60, 
+#                    height=60)
+#        image = gtk.Image()
+#        image.set_from_pixbuf(pixbuf)
+
+#        self.XplusYminus.add(image)
+
+        # image = gtk.image_new_from_stock (gtk.STOCK_CLOSE, gtk.ICON_SIZE_SMALL_TOOLBAR)
+        # closeButton = gtk.Button ()
+        # closeButton.add (image)
+        # closeButton.set_size_request (23, 23)
+
         self.resume = gtk.Button('Resume\nCut')
         for child in self.resume.children():
             child.set_justify(gtk.JUSTIFY_CENTER)
@@ -239,6 +348,8 @@ class recovery:
         self.cancel.connect('pressed', self.cancel_pressed)
         self.T.attach(self.cancel, 4, 5, 10, 12)
         hal.set_p('plasmac_run.preview-tab', '1')
+
+#        response = self.W.run()
 
 if __name__ == '__main__':
    try:

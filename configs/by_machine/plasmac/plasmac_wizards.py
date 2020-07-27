@@ -45,6 +45,8 @@ import w_gusset
 import w_rotate
 import w_sector
 
+#import w_cut_recovery
+
 class wizards:
 
     def __init__(self, halcomp,builder,useropts):
@@ -297,8 +299,15 @@ class wizards:
         commands = self.iniButtonCode[bNum]
         if not commands: return
         if 'cut-recovery' in commands.lower() and hal.get_value('halui.program.is-paused'):
-            msg = Popen('python ./plasmac/wizards/w_cut_recovery.py',stdout=PIPE,stderr=PIPE, shell=True)
+            msg = Popen('python ./wizards/w_cut_recovery.py',stdout=PIPE,stderr=PIPE, shell=True)
             print(msg.communicate()[0])
+
+            # reload(w_cut_recovery)
+            # cr = w_cut_recovery.recovery()
+            # error = cr.create_widgets()
+            # if error:
+            #     self.dialog_error('CUT_RECOVERY', error)
+
             hal.set_p('plasmac.cut-recovery', '0')
 
     def on_button_pressed(self, button):
@@ -370,6 +379,8 @@ class wizards:
                 Popen('axis-remote {}/{}'.format(os.environ['LINUXCNC_NCFILES_DIR'], lFile), stdout = PIPE, shell = True)
             elif self.gui == 'gmoccapy':
                 self.c.program_open('{}/{}'.format(os.environ['LINUXCNC_NCFILES_DIR'], lFile))
+        elif 'cut-recovery' in commands.lower():
+            pass
         else:
             for command in commands.split('\\'):
                 if command.strip()[0] == '%':

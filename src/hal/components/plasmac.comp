@@ -539,7 +539,7 @@ FUNCTION(_) {
             }else if(!consumable_change && (stop_type == PAUSE || stop_type == WAIT) && consumable_changing){
                         state = CONSUMABLE_CHANGE_OFF;
             /* if we get a cut recovery start request and we are paused */
-            }else if(cut_recovery && stop_type == PAUSE && !cut_recovering){
+            }else if(cut_recovery && (stop_type == PAUSE || stop_type == WAIT) && !cut_recovering){
                 state = CUT_RECOVERY_ON;
             /* if we get a torch start request and we are stopped or waiting for a restart */
             }else if((tool == CUTTING || tool == SPOTTING || probe_test) && (stop_type == NONE || stop_type == WAIT) && homed){
