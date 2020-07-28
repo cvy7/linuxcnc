@@ -197,7 +197,7 @@ class HandlerClass:
             isIdleOn = False 
         for n in range(1,5):
             if 'change-consumables' in self.iniButtonCode[n]:
-                if hal.get_value('halui.program.is-paused'):
+                if hal.get_value('halui.program.is-paused') and not hal.get_value('plasmac.cut-recovering'):
                     self.builder.get_object('button' + str(n)).set_sensitive(True)
                 else:
                     self.builder.get_object('button' + str(n)).set_sensitive(False)

@@ -30,9 +30,7 @@ import time
 class recovery:
 
     def __init__(self):
-        print('INIT')
         self.i = linuxcnc.ini(os.environ['INI_FILE_NAME'])
-        print('inifile = {}'.format(self.i))
         try:
             self.h = hal.component('dummy')
             self.h.ready()

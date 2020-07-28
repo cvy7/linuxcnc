@@ -500,8 +500,13 @@ class wizards:
         for n in range(10,20):
             if 'load' in self.iniButtonCode[n]:
                 pass
-            elif 'change-consumables' in self.iniButtonCode[n] or 'cut-recovery' in self.iniButtonCode[n]:
-                if hal.get_value('halui.program.is-paused'):
+            elif 'change-consumables' in self.iniButtonCode[n]:
+                if hal.get_value('halui.program.is-paused') and not hal.get_value('plasmac.cut-recovering'):
+                    self.builder.get_object('button' + str(n)).set_sensitive(True)
+                else:
+                    self.builder.get_object('button' + str(n)).set_sensitive(False)
+            elif 'cut-recovery' in self.iniButtonCode[n]:
+                if hal.get_value('halui.program.is-paused') and hal.get_value('plasmac.motion-type') > 1 and not hal.get_value('plasmac.consumable-changing'):
                     self.builder.get_object('button' + str(n)).set_sensitive(True)
                 else:
                     self.builder.get_object('button' + str(n)).set_sensitive(False)
