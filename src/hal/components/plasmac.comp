@@ -402,21 +402,25 @@ FUNCTION(_) {
             probe_inhibit = TRUE;
             state = MAX_HEIGHT;
         }else if(!probe_test && (external_estop || program_is_idle) && cut_started && !program_run){
-            auto_cut = FALSE;
-            if(!pause_at_end){
-                torch_on = FALSE;
-            }
-            stop_type = STOP;
-            program_stop = TRUE;
-            cut_started = FALSE;
-            probe_required = TRUE;
-            axis_x_finish = 0;
-            axis_y_finish = 0;
-            if(!external_estop){
-                pause_at_end_timer = pause_at_end;
-                state = PAUSE_AT_END;
+            if(consumable_changing){
+                state = CONSUMABLE_CHANGE_OFF;
             }else{
-                state = MAX_HEIGHT;
+                auto_cut = FALSE;
+                if(!pause_at_end){
+                    torch_on = FALSE;
+                }
+                stop_type = STOP;
+                program_stop = TRUE;
+                cut_started = FALSE;
+                probe_required = TRUE;
+                axis_x_finish = 0;
+                axis_y_finish = 0;
+                if(!external_estop){
+                    pause_at_end_timer = pause_at_end;
+                    state = PAUSE_AT_END;
+                }else{
+                    state = MAX_HEIGHT;
+                }
             }
         }else if(!probe_test && state > IDLE && state <= CUT && stop_type == NONE && cut_started){
             if(program_is_paused){
