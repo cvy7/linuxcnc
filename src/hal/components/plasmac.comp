@@ -7,7 +7,7 @@ A plasma cutting table control component for use with the LinuxCNC V2.8 or later
 
 .I VERSION:
 .br
-0.147 - 2020 Jul 27
+0.148 - 2020 Jul 29
 
 .I SUMMARY:
 .br
@@ -206,6 +206,7 @@ variable int    probe_velocity;             /* probe down velocity */
 variable int    puddle_jump_percent;        /* puddle jump height as percentage of pierce height */
 variable int    puddle_jump_target;         /* puddle jump height target offset */
 variable float  puddle_jump_timer;          /* puddle jump delay timer */
+variable float  recovery_velocity;          /* cut recovery step velocity */
 variable float  requested_feed_rate;        /* requested feed rate */
 variable float  restart_timer;              /* time between torch on attempts*/
 variable int    safe_min;                   /* minimum safe height allowed */
@@ -310,6 +311,7 @@ FUNCTION(_) {
         adaptive_feed = 1;
         initialized = TRUE;
         probe_force_val = 5;
+        recovery_velocity = 3;
     }
 
     /* set the active tool */
@@ -538,16 +540,16 @@ FUNCTION(_) {
                 if(paused_motion_speed && (stop_type == PAUSE || stop_type == WAIT)){
                     state = PAUSED_MOTION;
                 /* if we get a consumable change start request and we are paused */
-            }else if(consumable_change && (stop_type == PAUSE || stop_type == WAIT) && !consumable_changing){
-                    state = CONSUMABLE_CHANGE_ON;
-                /* if we get a consumable change stop request and we are changing consumables */
-            }else if(!consumable_change && (stop_type == PAUSE || stop_type == WAIT) && consumable_changing){
-                        state = CONSUMABLE_CHANGE_OFF;
-            /* if we get a cut recovery start request and we are paused */
-            }else if(cut_recovery && (stop_type == PAUSE || stop_type == WAIT) && !cut_recovering){
-                state = CUT_RECOVERY_ON;
-            /* if we get a torch start request and we are stopped or waiting for a restart */
-            }else if((tool == CUTTING || tool == SPOTTING || probe_test) && (stop_type == NONE || stop_type == WAIT) && homed){
+                }else if(consumable_change && (stop_type == PAUSE || stop_type == WAIT) && !consumable_changing){
+                    state = MAX_HEIGHT;
+                    /* if we get a consumable change stop request and we are changing consumables */
+                }else if(!consumable_change && (stop_type == PAUSE || stop_type == WAIT) && consumable_changing){
+                    state = CONSUMABLE_CHANGE_OFF;
+                /* if we get a cut recovery start request and we are paused */
+                }else if(cut_recovery && (stop_type == PAUSE || stop_type == WAIT) && !cut_recovering){
+                    state = CUT_RECOVERY_ON;
+                /* if we get a torch start request and we are stopped or waiting for a restart */
+                }else if((tool == CUTTING || tool == SPOTTING || probe_test) && (stop_type == NONE || stop_type == WAIT) && homed){
                     feed_hold = TRUE;
                     stop_type = NONE;
                     //touchdown = FALSE;
@@ -623,19 +625,18 @@ FUNCTION(_) {
                             state = PROBE_HEIGHT;
                         }
                     }
-            /* if we get a resume request and we are paused */
-            }else if(!program_is_paused && stop_type == PAUSE){
-                if(consumable_changing){
-                    state = CONSUMABLE_CHANGE_OFF;
-                }else if(motion_type == 1){
-                    feed_hold = FALSE;
-                }else{
-                    feed_hold = TRUE;
-                }
-                stop_type = NONE;
-
-            /* if torch pulse requested */
-            }else if(torch_pulse_start && !breakaway && !float_switch && !ohmic_probe){
+                /* if we get a resume request and we are paused */
+                }else if(!program_is_paused && stop_type == PAUSE){
+                    if(consumable_changing){
+                        state = CONSUMABLE_CHANGE_OFF;
+                    }else if(motion_type == 1){
+                        feed_hold = FALSE;
+                    }else{
+                        feed_hold = TRUE;
+                    }
+                    stop_type = NONE;
+                /* if torch pulse requested */
+                }else if(torch_pulse_start && !breakaway && !float_switch && !ohmic_probe){
                     feed_hold = TRUE;
                     state = TORCHPULSE;
                 /* if ohmic probe shorted test requested */
@@ -644,7 +645,7 @@ FUNCTION(_) {
                     ohmic_enable = TRUE;
                     state = OHMIC_TEST;
                 /* if we get a air-scribe start request */
-            }else if(tool == SCRIBE && !probe_test && homed){
+                }else if(tool == SCRIBE && !probe_test && homed){
                     state = SCRIBING;
                     scribe_arm_timer = scribe_arm_delay;
                     scribe_pause = FALSE;
@@ -1218,7 +1219,11 @@ FUNCTION(_) {
                     }
                     /* do height override here for remainder of job */
                     height_ovr_old = 0;
-                    state = FINISH;
+                    if(consumable_change){
+                        state = CONSUMABLE_CHANGE_ON;
+                    }else{
+                        state = FINISH;
+                    }
                 }
             }
             break;
@@ -1402,38 +1407,40 @@ FUNCTION(_) {
                 }
                 consumable_changing = TRUE;
             }else{
-                if(x_velocity && x_offset_counts != x_offset){
-                    if(x_offset > 0){
-                        if(x_offset_counts + x_velocity < x_offset){
-                            x_offset_counts += x_velocity;
+                if(consumable_change){
+                    if(x_velocity && x_offset_counts != x_offset){
+                        if(x_offset > 0){
+                            if(x_offset_counts + x_velocity < x_offset){
+                                x_offset_counts += x_velocity;
+                            }else{
+                                x_offset_counts = x_offset;
+                            }
                         }else{
-                            x_offset_counts = x_offset;
-                        }
-                    }else{
-                        if(x_offset_counts - x_velocity > x_offset){
-                            x_offset_counts -= x_velocity;
-                        }else{
-                            x_offset_counts = x_offset;
+                            if(x_offset_counts - x_velocity > x_offset){
+                                x_offset_counts -= x_velocity;
+                            }else{
+                                x_offset_counts = x_offset;
+                            }
                         }
                     }
-                }
-                if(y_velocity && y_offset_counts != y_offset){
-                    if(y_offset > 0){
-                        if(y_offset_counts + y_velocity < y_offset){
-                            y_offset_counts += y_velocity;
+                    if(y_velocity && y_offset_counts != y_offset){
+                        if(y_offset > 0){
+                            if(y_offset_counts + y_velocity < y_offset){
+                                y_offset_counts += y_velocity;
+                            }else{
+                                y_offset_counts = y_offset;
+                            }
                         }else{
-                            y_offset_counts = y_offset;
-                        }
-                    }else{
-                        if(y_offset_counts - y_velocity > y_offset){
-                            y_offset_counts -= y_velocity;
-                        }else{
-                            y_offset_counts = y_offset;
+                            if(y_offset_counts - y_velocity > y_offset){
+                                y_offset_counts -= y_velocity;
+                            }else{
+                                y_offset_counts = y_offset;
+                            }
                         }
                     }
                 }
             }
-            if(x_offset_counts == x_offset && y_offset_counts == y_offset){
+            if((x_offset_counts == x_offset && y_offset_counts == y_offset) || !consumable_change){
                 state = IDLE;
             }
             break;
@@ -1486,19 +1493,19 @@ FUNCTION(_) {
             }
             if(cut_recovery){
                 if(x_offset_counts != x_offset){
-                    if(x_offset_counts + (cut_feed_rate * velocity_scale) < x_offset){
-                        x_offset_counts += (cut_feed_rate * velocity_scale);
-                    }else if(x_offset_counts - (cut_feed_rate * velocity_scale) > x_offset){
-                        x_offset_counts -= (cut_feed_rate * velocity_scale);
+                    if(x_offset_counts + recovery_velocity < x_offset){
+                        x_offset_counts += recovery_velocity;
+                    }else if(x_offset_counts - recovery_velocity > x_offset){
+                        x_offset_counts -= recovery_velocity;
                     }else{
                         x_offset_counts = x_offset;
                     }
                 }
                 if(y_offset_counts != y_offset){
-                    if(y_offset_counts + (cut_feed_rate * velocity_scale) < y_offset){
-                        y_offset_counts += (cut_feed_rate * velocity_scale);
-                    }else if(y_offset_counts - (cut_feed_rate * velocity_scale) > y_offset){
-                        y_offset_counts -= (cut_feed_rate * velocity_scale);
+                    if(y_offset_counts + recovery_velocity < y_offset){
+                        y_offset_counts += recovery_velocity;
+                    }else if(y_offset_counts - recovery_velocity > y_offset){
+                        y_offset_counts -= recovery_velocity;
                     }else{
                         y_offset_counts = y_offset;
                     }
